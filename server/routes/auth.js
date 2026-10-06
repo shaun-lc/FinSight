@@ -32,24 +32,24 @@ router.post('/register', async (req, res) => {
   }
 });
 
-router.post('/login', async (req, res) => {
+router.post('/login', async (req,res) => {
   try {
-    const { email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ message: 'email and password are required' });
+    const {email, password} = req.body;
+    if (!email || !password ){
+      return res.status(400).json({ message: "email & password are required "})
     }
-
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await User.findOne({email : email.toLowerCase() }) ;
     if (!user || !(await user.verifyPassword(password))) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+      return res.status(401).json({message: 'Invalid email or password'});
+    
     }
-
     const token = signToken(user._id.toString());
     res.json({ token, user });
   } catch (err) {
     res.status(500).json({ message: 'Login failed', error: err.message });
   }
 });
+
 
 router.get('/me', authMiddleware, async (req, res) => {
   try {

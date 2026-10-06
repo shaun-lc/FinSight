@@ -1,30 +1,45 @@
 import express from 'express';
 import authMiddleware from '../middleware/authMiddleware.js';
-import { getQuote, getQuotes } from '../services/priceService.js';
+import { getHistory, getQuote, PriceError } from '../services/priceService.js';
 
 const router = express.Router();
 
 router.use(authMiddleware);
 
-router.get('/', async (req, res) => {
+const TICKER_PATTERN = /^[A-Z.-]{1,10}$/;
+
+function parseTicker(req, res, next) {
+  const ticker = req.params.ticker.toUpperCase();
+  if (!TICKER_PATTERN.test(ticker)) {
+    return res.status(400).json({ message: 'Invalid ticker' });
+  }
+  req.ticker = ticker;
+  next();
+}
+
+function handleError(res, err, fallbackMessage) {
+  if (err instanceof PriceError) {
+    return res.status(err.status).json({ message: err.message });
+  }
+  res.status(500).json({ message: fallbackMessage, error: err.message });
+}
+
+router.get('/quote/:ticker', parseTicker, async (req, res) => {
   try {
-    const symbols = (req.query.symbols || '').split(',').filter(Boolean);
-    if (symbols.length === 0) {
-      return res.status(400).json({ message: 'symbols query parameter is required' });
-    }
-    const quotes = await getQuotes(symbols);
-    res.json(quotes);
+    res.json(await getQuote(req.ticker));
   } catch (err) {
-    res.status(500).json({ message: 'Failed to fetch prices', error: err.message });
+    handleError(res, err, 'Failed to fetch quote');
   }
 });
 
-router.get('/:symbol', async (req, res) => {
+router.get('/history/:ticker', parseTicker, async (req, res) => {
   try {
-    const quote = await getQuote(req.params.symbol);
-    res.json(quote);
+    const { data, stale } = await getHistory(req.ticker);
+    // Keep the body a plain array; flag staleness via header.
+    if (stale) res.set('X-Cache-Stale', 'true');
+    res.json(data);
   } catch (err) {
-    res.status(500).json({ message: 'Failed to fetch price', error: err.message });
+    handleError(res, err, 'Failed to fetch history');
   }
 });
 

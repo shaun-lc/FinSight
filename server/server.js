@@ -1,10 +1,11 @@
-import cors from 'cors';
+import cors from 'cors'; //Cross origin Resource sharing, react runs on 5173 port, and server runs on 5000; allows communications
 import dotenv from 'dotenv';
-import express from 'express';
+import express from 'express'; //handles HTTPS requests
 import { connectDB } from './config/db.js';
 import authRoutes from './routes/auth.js';
 import holdingsRoutes from './routes/holdings.js';
 import newsRoutes from './routes/news.js';
+import PriceCache from './models/PriceCache.js';
 import pricesRoutes from './routes/prices.js';
 
 dotenv.config();
@@ -31,6 +32,7 @@ app.use((req, res) => {
 async function start() {
   try {
     await connectDB();
+    await PriceCache.syncIndexes(); // drops the old unique symbol index, builds the compound one
     app.listen(PORT, () => {
       console.log(`FinSight server running on port ${PORT}`);
     });

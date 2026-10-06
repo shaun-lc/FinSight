@@ -1,50 +1,117 @@
+import axios from 'axios';
 import PriceCache from '../models/PriceCache.js';
 
-const CACHE_TTL_MS = 5 * 60 * 1000;
+const BASE_URL = 'https://www.alphavantage.co/query';
+const CACHE_TTL_MS = 60 * 60 * 1000;
+const MIN_HISTORY_DAYS = 90;
 
-/**
- * Fetches a quote for a symbol. Uses the Alpha Vantage API when ALPHA_VANTAGE_API_KEY
- * is configured, falling back to a cached/mock price otherwise.
- */
-export async function getQuote(symbol) {
-  const upperSymbol = symbol.toUpperCase();
-  const cached = await PriceCache.findOne({ symbol: upperSymbol });
-
-  if (cached && Date.now() - cached.fetchedAt.getTime() < CACHE_TTL_MS) {
-    return { symbol: upperSymbol, price: cached.price, source: 'cache' };
+export class PriceError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
   }
+}
 
-  const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
-  let price = cached?.price ?? 0;
+const isFresh = (fetchedAt) => fetchedAt && Date.now() - new Date(fetchedAt).getTime() < CACHE_TTL_MS;
 
-  if (apiKey) {
-    try {
-      const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${upperSymbol}&apikey=${apiKey}`;
-      const res = await fetch(url);
-      const data = await res.json();
-      const quoted = Number(data?.['Global Quote']?.['05. price']);
-      if (!Number.isNaN(quoted) && quoted > 0) {
-        price = quoted;
-      }
-    } catch (err) {
-      console.error(`Failed to fetch quote for ${upperSymbol}:`, err.message);
+async function callAlphaVantage(params) {
+  let data;
+  try {
+    const res = await axios.get(BASE_URL, {
+      params: { ...params, apikey: process.env.ALPHA_VANTAGE_API_KEY },
+      timeout: 10000,
+    });
+    data = res.data;
+  } catch (err) {
+    throw new PriceError(502, `Price provider unreachable: ${err.message}`);
+  }
+  // Alpha Vantage reports errors with HTTP 200 and a message key.
+  if (data?.Note || data?.Information) {
+    throw new PriceError(429, 'Price provider rate limit reached');
+  }
+  if (data?.['Error Message']) {
+    throw new PriceError(404, 'Ticker not found');
+  }
+  return data;
+}
+
+const toQuoteDto = (doc) => ({
+  ticker: doc.ticker,
+  price: doc.price,
+  tradingDay: doc.tradingDay,
+  changePercent: doc.changePercent,
+  fetchedAt: doc.fetchedAt,
+});
+
+export async function getQuote(ticker) {
+  const cached = await PriceCache.findOne({ ticker, type: 'quote' }).lean();
+  if (cached && isFresh(cached.fetchedAt)) return toQuoteDto(cached);
+
+  try {
+    const data = await callAlphaVantage({ function: 'GLOBAL_QUOTE', symbol: ticker });
+    const q = data?.['Global Quote'];
+    if (!q || Object.keys(q).length === 0) throw new PriceError(404, 'Ticker not found');
+
+    const price = Number(q['05. price']);
+    const changePercent = parseFloat(q['10. change percent']);
+    const tradingDay = q['07. latest trading day'];
+    if (!Number.isFinite(price) || !Number.isFinite(changePercent) || !tradingDay) {
+      throw new PriceError(502, 'Unexpected response from price provider');
     }
-  } else {
-    // No API key configured: return a deterministic placeholder price.
-    price = price || 100;
+
+    const doc = await PriceCache.findOneAndUpdate(
+      { ticker, type: 'quote' },
+      { $set: { price, tradingDay, changePercent, fetchedAt: new Date() } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    ).lean();
+    return toQuoteDto(doc);
+  } catch (err) {
+    if (cached && (err.status === 429 || err.status === 502)) {
+      return { ...toQuoteDto(cached), stale: true };
+    }
+    throw err;
+  }
+}
+
+export async function getHistory(ticker) {
+  const readCache = () =>
+    PriceCache.find({ ticker, type: 'daily' }).sort({ date: 1 }).select('date close fetchedAt -_id').lean();
+  const toDto = (docs) => docs.map(({ date, close }) => ({ date, close }));
+
+  const cached = await readCache();
+  if (cached.length >= MIN_HISTORY_DAYS) {
+    const newestFetch = Math.max(...cached.map((d) => new Date(d.fetchedAt).getTime()));
+    if (isFresh(newestFetch)) return { data: toDto(cached) };
   }
 
-  await PriceCache.findOneAndUpdate(
-    { symbol: upperSymbol },
-    { symbol: upperSymbol, price, fetchedAt: new Date() },
-    { upsert: true }
-  );
+  try {
+    const data = await callAlphaVantage({
+      function: 'TIME_SERIES_DAILY',
+      symbol: ticker,
+      outputsize: 'compact',
+    });
+    const series = data?.['Time Series (Daily)'];
+    if (!series || Object.keys(series).length === 0) throw new PriceError(404, 'Ticker not found');
 
-  return { symbol: upperSymbol, price, source: apiKey ? 'alpha_vantage' : 'placeholder' };
+    const fetchedAt = new Date();
+    const ops = Object.entries(series)
+      .map(([date, v]) => ({ date, close: Number(v['4. close']) }))
+      .filter((d) => Number.isFinite(d.close))
+      .map(({ date, close }) => ({
+        updateOne: {
+          filter: { ticker, type: 'daily', date },
+          update: { $set: { close, fetchedAt } },
+          upsert: true,
+        },
+      }));
+    if (ops.length === 0) throw new PriceError(502, 'Unexpected response from price provider');
+
+    await PriceCache.bulkWrite(ops, { ordered: false });
+    return { data: toDto(await readCache()) };
+  } catch (err) {
+    if (cached.length > 0 && (err.status === 429 || err.status === 502)) {
+      return { data: toDto(cached), stale: true };
+    }
+    throw err;
+  }
 }
-
-export async function getQuotes(symbols = []) {
-  return Promise.all(symbols.map((symbol) => getQuote(symbol)));
-}
-
-export default { getQuote, getQuotes };
