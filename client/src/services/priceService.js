@@ -1,13 +1,13 @@
 import api from './api';
 
 const priceService = {
-  async getQuote(symbol) {
-    const res = await api.get(`/prices/${symbol}`);
+  async fetchQuote(ticker) {
+    const res = await api.get(`/prices/quote/${ticker}`);
     return res.data;
   },
 
-  async getQuotes(symbols) {
-    const res = await api.get('/prices', { params: { symbols: symbols.join(',') } });
+  async fetchHistory(ticker) {
+    const res = await api.get(`/prices/history/${ticker}`);
     return res.data;
   },
 };

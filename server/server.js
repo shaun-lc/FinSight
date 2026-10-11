@@ -7,8 +7,8 @@ import holdingsRoutes from './routes/holdings.js';
 import newsRoutes from './routes/news.js';
 import PriceCache from './models/PriceCache.js';
 import pricesRoutes from './routes/prices.js';
-
-dotenv.config();
+import riskRoutes from './routes/risk.js';
+dotenv.config({ path: '../.env' });
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -24,6 +24,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/holdings', holdingsRoutes);
 app.use('/api/prices', pricesRoutes);
 app.use('/api/news', newsRoutes);
+app.use('/api/risk', riskRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ message: 'Not found' });
