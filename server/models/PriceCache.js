@@ -3,12 +3,13 @@ import mongoose from 'mongoose';
 const priceCacheSchema = new mongoose.Schema(
   {
     ticker: { type: String, required: true, uppercase: true, trim: true },
-    type: { type: String, required: true, enum: ['quote', 'daily'] },
+    type: { type: String, required: true, enum: ['quote', 'daily', 'news'] },
     price: { type: Number }, // quote only
     close: { type: Number }, // daily only
     date: { type: String }, // daily only, YYYY-MM-DD
     tradingDay: { type: String }, // quote only, YYYY-MM-DD
     changePercent: { type: Number }, // quote only
+    articles: { type: Array, default: undefined }, // news only
     fetchedAt: { type: Date, default: Date.now },
   },
   { timestamps: true }
