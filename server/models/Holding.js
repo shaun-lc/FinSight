@@ -7,6 +7,7 @@ const holdingSchema = new mongoose.Schema(
     shares: { type: Number, required: true, min: 0 },
     avgCost: { type: Number, required: true, min: 0 },
     currentPrice: { type: Number, default: 0 },
+    buyDate: { type: Date },
   },
   { timestamps: true }
 );

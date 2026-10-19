@@ -1,11 +1,13 @@
 import express from 'express';
 import authMiddleware from '../middleware/authMiddleware.js';
+import { validateTickerParam } from '../middleware/validate.js';
 import Holding from '../models/Holding.js';
 import { fetchCompanyNews } from '../services/newsService.js';
 
 const router = express.Router();
 
 router.use(authMiddleware);
+router.param('ticker', validateTickerParam);
 
 router.get('/feed', async (req, res) => {
   try {
@@ -37,7 +39,7 @@ router.get('/feed', async (req, res) => {
 
 router.get('/:ticker', async (req, res) => {
   try {
-    const ticker = req.params.ticker.toUpperCase();
+    const ticker = req.params.ticker;
     const articles = await fetchCompanyNews(ticker);
     res.json(articles);
   } catch (err) {

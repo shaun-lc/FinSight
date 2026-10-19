@@ -1,4 +1,5 @@
 import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
+import { formatDollars } from '../utils/format';
 
 const COLORS = ['#85B7EB', '#5DCAA5', '#F0997B', '#AFA9EC', '#ED93B1', '#97C459'];
 
@@ -47,7 +48,7 @@ export default function AllocationChart({ data = [] }) {
               <Cell key={entry.name} fill={COLORS[index % COLORS.length]} />
             ))}
           </Pie>
-          <Tooltip formatter={(val) => `$${Number(val).toFixed(2)}`} />
+          <Tooltip formatter={(val) => formatDollars(Number(val))} />
           <Legend content={renderLegend} />
         </PieChart>
       </ResponsiveContainer>

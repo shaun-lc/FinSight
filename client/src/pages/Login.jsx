@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import usePageTitle from '../hooks/usePageTitle';
 import useAuth from '../hooks/useAuth';
 
 export default function Login() {
+  usePageTitle('Log in');
   const { login } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
@@ -52,6 +54,12 @@ export default function Login() {
         >
           {submitting ? 'Logging in...' : 'Log in'}
         </button>
+        <p className="text-sm text-center text-gray-600">
+          Don&apos;t have an account?{' '}
+          <Link to="/register" className="text-blue-500 hover:underline">
+            Sign up
+          </Link>
+        </p>
       </form>
     </div>
   );

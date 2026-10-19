@@ -1,11 +1,17 @@
+import { PlusCircleIcon } from '@heroicons/react/24/outline';
 import { useEffect, useMemo, useState } from 'react';
 import AllocationChart from '../components/AllocationChart';
+import EmptyState from '../components/EmptyState';
 import MetricCard from '../components/MetricCard';
 import PortfolioChart from '../components/PortfolioChart';
+import { ChartSkeleton, MetricCardSkeleton } from '../components/Skeletons';
+import usePageTitle from '../hooks/usePageTitle';
 import usePortfolio from '../hooks/usePortfolio';
 import priceService from '../services/priceService';
+import { formatDollars, formatPercent } from '../utils/format';
 
 export default function Dashboard() {
+  usePageTitle('Dashboard');
   const { holdings, loading, error, totals } = usePortfolio();
   const [historyData, setHistoryData] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -40,8 +46,6 @@ export default function Dashboard() {
         if (!cancelled) {
           setHistoryData(sorted);
         }
-      } catch {
-        // history is non-critical, fail silently
       } finally {
         if (!cancelled) setHistoryLoading(false);
       }
@@ -57,40 +61,50 @@ export default function Dashboard() {
     [holdings]
   );
 
-  const formatDollars = (n) => `$${Math.abs(n).toFixed(2)}`;
-  const formatPercent = (n) => `${n >= 0 ? '+' : '-'}${Math.abs(n).toFixed(1)}%`;
-  const sign = (n) => (n >= 0 ? '+$' : '-$');
+  const isEmpty = !loading && !error && holdings.length === 0;
 
   return (
-    <div className="p-6 flex flex-col gap-6">
+    <div className="p-4 md:p-6 flex flex-col gap-6">
       <h1 className="text-2xl font-bold">Dashboard</h1>
 
-      {loading && <p className="text-sm text-gray-500">Loading portfolio...</p>}
       {error && <p className="text-sm text-red-600">{error}</p>}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard label="Total Value" value={formatDollars(totals.totalValue)} />
-        <MetricCard
-          label="Today's P&L"
-          value={`${sign(totals.dayChange)}${Math.abs(totals.dayChange).toFixed(2)}`}
-          color={totals.dayChange >= 0 ? 'green' : 'red'}
+      {isEmpty ? (
+        <EmptyState
+          icon={PlusCircleIcon}
+          message="Add your first holding to get started"
+          linkTo="/portfolio"
+          linkLabel="Go to Portfolio"
         />
-        <MetricCard
-          label="Total Return"
-          value={formatPercent(totals.totalGainPercent)}
-          color={totals.totalGainPercent >= 0 ? 'green' : 'red'}
-        />
-        <MetricCard label="Holdings" value={holdings.length} />
-      </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {loading ? (
+              Array.from({ length: 4 }, (_, i) => <MetricCardSkeleton key={i} />)
+            ) : (
+              <>
+                <MetricCard label="Total Value" value={formatDollars(totals.totalValue)} />
+                <MetricCard
+                  label="Today's P&L"
+                  value={formatDollars(totals.dayChange, { signed: true })}
+                  color={totals.dayChange >= 0 ? 'green' : 'red'}
+                />
+                <MetricCard
+                  label="Total Return"
+                  value={formatPercent(totals.totalGainPercent)}
+                  color={totals.totalGainPercent >= 0 ? 'green' : 'red'}
+                />
+                <MetricCard label="Holdings" value={holdings.length} />
+              </>
+            )}
+          </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-        <div className="lg:col-span-3">
-          <PortfolioChart data={historyData} />
-        </div>
-        <div className="lg:col-span-2">
-          <AllocationChart data={allocationData} />
-        </div>
-      </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {loading || historyLoading ? <ChartSkeleton /> : <PortfolioChart data={historyData} />}
+            {loading ? <ChartSkeleton height={280} /> : <AllocationChart data={allocationData} />}
+          </div>
+        </>
+      )}
     </div>
   );
 }

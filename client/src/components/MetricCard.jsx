@@ -7,7 +7,7 @@ export default function MetricCard({ label, value, color }) {
   return (
     <div className="bg-white rounded-lg shadow-sm p-4 flex flex-col gap-1">
       <span className="text-gray-500 text-xs">{label}</span>
-      <span className={`text-2xl font-semibold ${valueColor}`}>{value}</span>
+      <span className={`text-2xl font-semibold ${valueColor}`}>{typeof value === 'number' ? value.toLocaleString() : value}</span>
     </div>
   );
 }

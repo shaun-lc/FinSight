@@ -1,8 +1,15 @@
+import { NewspaperIcon } from '@heroicons/react/24/outline';
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import EmptyState from '../components/EmptyState';
+import { NewsCardSkeleton } from '../components/Skeletons';
+import { useToast } from '../context/ToastContext';
+import usePageTitle from '../hooks/usePageTitle';
 import newsService from '../services/newsService';
+import { reportError } from '../utils/errors';
 
 export default function News() {
+  usePageTitle('News');
+  const { showToast } = useToast();
   const [articles, setArticles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -15,14 +22,17 @@ export default function News() {
         const data = await newsService.fetchNewsFeed();
         if (!cancelled) setArticles(data);
       } catch (err) {
-        if (!cancelled) setError(err.response?.data?.message || 'Failed to load news');
+        if (!cancelled) {
+          setError(err.response?.data?.message || 'Failed to load news');
+          reportError(showToast, err, 'Failed to load news');
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
     load();
     return () => { cancelled = true; };
-  }, []);
+  }, [showToast]);
 
   const tickers = useMemo(
     () => [...new Set(articles.map((a) => a.ticker))],
@@ -46,17 +56,10 @@ export default function News() {
 
   if (loading) {
     return (
-      <div className="p-6 flex flex-col gap-4">
+      <div className="p-4 md:p-6 flex flex-col gap-4">
         <h1 className="text-2xl font-bold">Market News</h1>
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="bg-white rounded-lg p-4 animate-pulse flex gap-4">
-            <div className="flex-1 space-y-2">
-              <div className="h-4 bg-gray-200 rounded w-3/4" />
-              <div className="h-3 bg-gray-200 rounded w-1/3" />
-              <div className="h-3 bg-gray-200 rounded w-full" />
-            </div>
-            <div className="w-20 h-20 bg-gray-200 rounded" />
-          </div>
+          <NewsCardSkeleton key={i} />
         ))}
       </div>
     );
@@ -64,7 +67,7 @@ export default function News() {
 
   if (error) {
     return (
-      <div className="p-6">
+      <div className="p-4 md:p-6">
         <h1 className="text-2xl font-bold mb-4">Market News</h1>
         <p className="text-sm text-red-600">{error}</p>
       </div>
@@ -73,20 +76,15 @@ export default function News() {
 
   if (articles.length === 0) {
     return (
-      <div className="p-6">
+      <div className="p-4 md:p-6">
         <h1 className="text-2xl font-bold mb-4">Market News</h1>
-        <p className="text-sm text-gray-500">
-          Add some holdings to see relevant news.{' '}
-          <Link to="/portfolio" className="text-blue-500 hover:underline">
-            Go to Portfolio
-          </Link>
-        </p>
+        <EmptyState icon={NewspaperIcon} message="No recent news for your holdings" />
       </div>
     );
   }
 
   return (
-    <div className="p-6 flex flex-col gap-6">
+    <div className="p-4 md:p-6 flex flex-col gap-6">
       <h1 className="text-2xl font-bold">Market News</h1>
 
       <div className="flex flex-wrap gap-2">
@@ -112,7 +110,7 @@ export default function News() {
             href={article.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="bg-white rounded-lg border border-gray-100 p-4 hover:shadow-md transition-shadow flex gap-4"
+            className="w-full bg-white rounded-lg border border-gray-100 p-4 hover:shadow-md transition-shadow flex gap-4"
           >
             <div className="flex-1 min-w-0">
               <h3 className="font-semibold text-gray-900 line-clamp-1">{article.headline}</h3>
@@ -132,7 +130,7 @@ export default function News() {
               <img
                 src={article.image}
                 alt=""
-                className="w-20 h-20 rounded object-cover flex-shrink-0"
+                className="hidden sm:block w-20 h-20 rounded object-cover flex-shrink-0"
               />
             )}
           </a>

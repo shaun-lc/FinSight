@@ -19,7 +19,7 @@ export default function App() {
   const { token } = useAuth();
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className={`min-h-screen bg-gray-50 ${token ? 'pb-16 md:pb-0' : ''}`}>
       {token && <Navbar />}
       <Routes>
         <Route path="/login" element={<Login />} />

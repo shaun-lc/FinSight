@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useToast } from '../context/ToastContext';
+import { reportError } from '../utils/errors';
 import holdingsService from '../services/holdingsService';
 import priceService from '../services/priceService';
 
 export function usePortfolio() {
+  const { showToast } = useToast();
   const [holdings, setHoldings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -28,11 +31,12 @@ export function usePortfolio() {
 
       setHoldings(merged);
     } catch (err) {
-      setError(err.message || 'Failed to load portfolio');
+      setError(err.response?.data?.message || 'Failed to load portfolio');
+      reportError(showToast, err, 'Failed to load portfolio');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [showToast]);
 
   useEffect(() => {
     fetchPortfolio();

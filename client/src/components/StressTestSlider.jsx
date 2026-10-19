@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { formatDollars } from '../utils/format';
 import { stressTest } from '../utils/riskCalculations';
 
 export default function StressTestSlider({ portfolioValue = 0 }) {
@@ -23,12 +24,12 @@ export default function StressTestSlider({ portfolioValue = 0 }) {
       />
       <div className="flex justify-between text-sm">
         <span className="text-gray-500">Current value</span>
-        <span>${portfolioValue.toFixed(2)}</span>
+        <span>{formatDollars(portfolioValue)}</span>
       </div>
       <div className="flex justify-between text-sm font-semibold">
         <span>Stressed value</span>
         <span className={stressedValue < portfolioValue ? 'text-red-600' : 'text-green-600'}>
-          ${stressedValue.toFixed(2)}
+          {formatDollars(stressedValue)}
         </span>
       </div>
     </div>

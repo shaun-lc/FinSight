@@ -9,10 +9,19 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { ShieldExclamationIcon } from '@heroicons/react/24/outline';
+import EmptyState from '../components/EmptyState';
 import MetricCard from '../components/MetricCard';
+import { ChartSkeleton, MetricCardSkeleton } from '../components/Skeletons';
+import { useToast } from '../context/ToastContext';
+import usePageTitle from '../hooks/usePageTitle';
 import riskService from '../services/riskService';
+import { reportError } from '../utils/errors';
+import { formatDollars, formatPercent } from '../utils/format';
 
 export default function RiskAnalytics() {
+  usePageTitle('Risk Analytics');
+  const { showToast } = useToast();
   const [risk, setRisk] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -25,12 +34,13 @@ export default function RiskAnalytics() {
         setRisk(data);
       } catch (err) {
         setError(err.response?.data?.message || 'Failed to load risk data');
+        reportError(showToast, err, 'Failed to load risk data');
       } finally {
         setLoading(false);
       }
     }
     load();
-  }, []);
+  }, [showToast]);
 
   const volLabel = (v) => {
     if (v < 0.15) return { text: 'Low risk', color: 'green' };
@@ -65,7 +75,7 @@ export default function RiskAnalytics() {
     });
 
     return bins.map((b) => ({
-      label: `${(b.rangeStart * 100).toFixed(1)}%`,
+      label: formatPercent(b.rangeStart * 100),
       count: b.count,
       rangeStart: b.rangeStart,
     }));
@@ -82,9 +92,36 @@ export default function RiskAnalytics() {
     return '#378ADD';
   };
 
-  if (loading) return <div className="p-6 text-sm text-gray-500">Loading risk analytics...</div>;
-  if (error) return <div className="p-6 text-sm text-red-600">{error}</div>;
+  if (loading) {
+    return (
+      <div className="p-4 md:p-6 flex flex-col gap-6">
+        <h1 className="text-2xl font-bold">Risk Analytics</h1>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => <MetricCardSkeleton key={i} />)}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <ChartSkeleton />
+          <ChartSkeleton />
+        </div>
+      </div>
+    );
+  }
+  if (error) return <div className="p-4 md:p-6 text-sm text-red-600">{error}</div>;
   if (!risk) return null;
+
+  if (risk.holdingRisks.length < 2) {
+    return (
+      <div className="p-4 md:p-6">
+        <h1 className="text-2xl font-bold">Risk Analytics</h1>
+        <EmptyState
+          icon={ShieldExclamationIcon}
+          message="Add at least 2 holdings to see risk metrics"
+          linkTo="/portfolio"
+          linkLabel="Go to Portfolio"
+        />
+      </div>
+    );
+  }
 
   const vol = volLabel(risk.volatilityAnnualised);
   const sharpe = sharpeLabel(risk.sharpeRatio);
@@ -92,14 +129,14 @@ export default function RiskAnalytics() {
   const portfolioAfter = risk.totalValue - estimatedLoss;
 
   return (
-    <div className="p-6 flex flex-col gap-6">
+    <div className="p-4 md:p-6 flex flex-col gap-6">
       <h1 className="text-2xl font-bold">Risk Analytics</h1>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <div>
           <MetricCard
             label="Annualised Volatility"
-            value={`${(risk.volatilityAnnualised * 100).toFixed(1)}%`}
+            value={`${(risk.volatilityAnnualised * 100).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`}
             color={vol.color === 'yellow' ? undefined : vol.color}
           />
           <p className={`text-xs mt-1 ml-1 ${
@@ -110,7 +147,7 @@ export default function RiskAnalytics() {
         <div>
           <MetricCard
             label="Sharpe Ratio"
-            value={risk.sharpeRatio.toFixed(2)}
+            value={risk.sharpeRatio.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             color={sharpe.color === 'yellow' ? undefined : sharpe.color}
           />
           <p className={`text-xs mt-1 ml-1 ${
@@ -121,7 +158,7 @@ export default function RiskAnalytics() {
         <div>
           <MetricCard
             label="VaR 95%"
-            value={`-$${risk.var95Dollar.toFixed(2)}`}
+            value={formatDollars(-risk.var95Dollar)}
             color="red"
           />
           <p className="text-xs mt-1 ml-1 text-red-500">Max daily loss (95% conf.)</p>
@@ -173,7 +210,7 @@ export default function RiskAnalytics() {
                 tick={{ fontSize: 10 }}
                 tickLine={false}
                 axisLine={false}
-                tickFormatter={(v) => `${v.toFixed(0)}%`}
+                tickFormatter={(v) => `${v.toLocaleString('en-US', { maximumFractionDigits: 0 })}%`}
               />
               <YAxis
                 type="category"
@@ -183,7 +220,7 @@ export default function RiskAnalytics() {
                 axisLine={false}
                 width={50}
               />
-              <Tooltip formatter={(val) => [`${val.toFixed(1)}%`, 'Contribution']} />
+              <Tooltip formatter={(val) => [`${val.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`, 'Contribution']} />
               <Bar dataKey="contribution" radius={[0, 4, 4, 0]}>
                 {sortedRisks.map((entry) => (
                   <Cell key={entry.ticker} fill={riskBarColor(entry.contribution)} />
@@ -216,13 +253,13 @@ export default function RiskAnalytics() {
             <div>
               <span className="text-xs text-gray-500">Estimated Loss</span>
               <p className="text-2xl font-semibold text-red-500">
-                -${estimatedLoss.toFixed(2)}
+                {formatDollars(-estimatedLoss)}
               </p>
             </div>
             <div>
               <span className="text-xs text-gray-500">Portfolio After</span>
               <p className="text-2xl font-semibold text-gray-900">
-                ${portfolioAfter.toFixed(2)}
+                {formatDollars(portfolioAfter)}
               </p>
             </div>
           </div>

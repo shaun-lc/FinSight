@@ -1,10 +1,16 @@
 import express from 'express';
 import authMiddleware from '../middleware/authMiddleware.js';
+import {
+  validateHoldingCreate,
+  validateHoldingUpdate,
+  validateObjectIdParam,
+} from '../middleware/validate.js';
 import Holding from '../models/Holding.js';
 
 const router = express.Router();
 
 router.use(authMiddleware);
+router.param('id', validateObjectIdParam);
 
 router.get('/', async (req, res) => {
   try {
@@ -15,12 +21,9 @@ router.get('/', async (req, res) => {
   }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', validateHoldingCreate, async (req, res) => {
   try {
-    const { symbol, shares, avgCost, currentPrice } = req.body;
-    if (!symbol || shares == null || avgCost == null) {
-      return res.status(400).json({ message: 'symbol, shares, and avgCost are required' });
-    }
+    const { symbol, shares, avgCost, currentPrice, buyDate } = req.body;
 
     const holding = await Holding.create({
       user: req.userId,
@@ -28,6 +31,7 @@ router.post('/', async (req, res) => {
       shares,
       avgCost,
       currentPrice: currentPrice ?? 0,
+      buyDate,
     });
     res.status(201).json(holding);
   } catch (err) {
@@ -35,12 +39,18 @@ router.post('/', async (req, res) => {
   }
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', validateHoldingUpdate, async (req, res) => {
   try {
+    const { symbol, shares, avgCost, currentPrice, buyDate } = req.body;
+    const updates = Object.fromEntries(
+      Object.entries({ symbol, shares, avgCost, currentPrice, buyDate }).filter(
+        ([, v]) => v !== undefined
+      )
+    );
     const holding = await Holding.findOneAndUpdate(
       { _id: req.params.id, user: req.userId },
-      req.body,
-      { new: true }
+      updates,
+      { new: true, runValidators: true }
     );
     if (!holding) {
       return res.status(404).json({ message: 'Holding not found' });

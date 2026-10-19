@@ -1,4 +1,5 @@
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { formatDollars } from '../utils/format';
 
 export default function PortfolioChart({ data = [] }) {
   if (data.length === 0) {
@@ -10,7 +11,7 @@ export default function PortfolioChart({ data = [] }) {
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  const formatDollars = (val) => `$${Number(val).toLocaleString()}`;
+  const formatAxis = (val) => `$${Number(val).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 
   return (
     <div className="bg-white rounded-lg shadow-sm p-4">
@@ -31,14 +32,14 @@ export default function PortfolioChart({ data = [] }) {
             axisLine={false}
           />
           <YAxis
-            tickFormatter={formatDollars}
+            tickFormatter={formatAxis}
             tick={{ fontSize: 11 }}
             tickLine={false}
             axisLine={false}
             width={70}
           />
           <Tooltip
-            formatter={(val) => [formatDollars(val), 'Value']}
+            formatter={(val) => [formatDollars(Number(val)), 'Value']}
             labelFormatter={formatDate}
           />
           <Area

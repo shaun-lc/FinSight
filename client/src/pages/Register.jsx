@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import usePageTitle from '../hooks/usePageTitle';
 import useAuth from '../hooks/useAuth';
 
 export default function Register() {
+  usePageTitle('Register');
   const { register } = useAuth();
   const navigate = useNavigate();
   const [name, setName] = useState('');
@@ -61,6 +63,12 @@ export default function Register() {
         >
           {submitting ? 'Creating account...' : 'Register'}
         </button>
+        <p className="text-sm text-center text-gray-600">
+          Already have an account?{' '}
+          <Link to="/login" className="text-blue-500 hover:underline">
+            Log in
+          </Link>
+        </p>
       </form>
     </div>
   );
